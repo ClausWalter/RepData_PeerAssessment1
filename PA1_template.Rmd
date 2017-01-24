@@ -1,0 +1,162 @@
+---
+title: "Reproducible Research: Peer Assessment 1"
+author: "Claus Walter"
+date: "24 Januar 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.	Code for reading in the dataset and/or processing the data
+Before the data is loaded and processed, some additional steps (e.g. loading a library and set system locale) are done. Then, data is loaded from an URL, unzipped and - read from the resulting csv-file - loaded into a data frame. In most steps that may slow down overall processing, the program checks for the existence of certain structures/objects. If already exising, the program would not load/create the object again. This is mainly to save time especially during repeated testing. Starting with the unzipping, this is not done any more, since these steps are either considered quick (e.g. unzipping) or good for data quality, re-building consistent data content in case of re-runs of the code.
+The preparation steps taken:
+```{r preparation, echo=TRUE}
+        library(lubridate)
+        Sys.setlocale(category = "LC_ALL", locale = "US")
+        path<-getwd()
+        pathIn <- file.path(path, "Activity Monitoring Data")
+```
+Load the data (i.e. read.csv()):
+```{r load data, echo=TRUE}
+        url <-"https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+        filename<- "activity.zip"
+        filenameNpath<-file.path(path, filename)
+        if (!file.exists(path)) {dir.create(path)}
+        if (!file.exists(filenameNpath)){
+                download.file(url, destfile = filenameNpath, mode = "wb")
+        }
+        unzip(file.path(path, filename), files = NULL, list = FALSE, 
+              overwrite = TRUE, junkpaths = FALSE, exdir = ".", 
+              unzip = "internal", setTimes = FALSE)
+        activity <- read.csv("activity.csv", header=TRUE, sep=",", 
+              quote = "\"", na.strings=c("NA"), 
+              as.is=TRUE, encoding = "UTF-8") 
+```
+Process/transform the data (if necessary) into a format suitable for your analysis: Here, I didn't see tbe need for that yet. Lateron, I will format the "date" column, but that comes only with a derived data frame. So I didn't bother here to add a step technically not needed (yet). All I need for now is in the coding above.
+
+## 2.	Histogram of the total number of steps taken each day
+To show the right information on the histogram, some aggregation is necessary first, using the according R-function. Input is the data frame information created in the previous step, missing values are ignored as per the assignment instructions.
+Calculate the total number of steps taken per day:
+```{r Calculation of the steps, echo=TRUE}
+        stepsEachDay <- aggregate(steps~date, data=activity, FUN="sum", na.rm=TRUE)
+```
+Histogram:
+```{r histogram , echo=TRUE}
+        hist(stepsEachDay$steps, main="Steps per Day", col = "blue", 
+             ylim = c(0, 30), xlim=c(0, 25000), 
+             xlab = "Steps/Day", ylab = "# of Days Values Occur",
+             labels = TRUE)
+```
+
+## 3.	Mean and median number of steps taken each day
+Very simple approach to show mean and median values of the steps taken each day is to use the according numbers. To avoid display problems, the values are used in an explicit print-function:
+```{r mean and medium non-imputed, echo=TRUE}
+        print(mean(stepsEachDay$steps))
+        print(median(stepsEachDay$steps))
+```
+## 4.	Time series plot of the average number of steps taken
+Again, some aggregation is necessary to show the number of steps are made over a full day. Here, the means over the intervals are calculated and displayed. Approach as per the assignment: take a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis):
+```{r steps over day, using the mean values for the intervals, echo=TRUE}
+        stepsOverDay <- aggregate(steps~interval, data=activity, FUN="mean", na.rm=TRUE)
+        plot(stepsOverDay, 
+             type = "l",
+             col = "blue",
+             main = "Average Steps over the Day", 
+             xlab = "Time Interval", 
+             ylab = "Steps per 5 Minute Interval")
+```
+
+
+## 5.	The 5-minute interval that, on average, contains the maximum number of steps
+Here a simple application of finding the max. average interval, using the same data input used for the previous step. As per the assignment, the code identifies the 5-minute interval, which on average across all the days in the dataset, contains the maximum number of steps:
+```{r highest mean value interval, echo=TRUE}
+        temp <- stepsOverDay[which.max(stepsOverDay$steps),]
+        print(temp$interval)
+```
+## 6.	Code to describe and show a strategy for imputing missing data
+Following the programming assignment, a relatively simple approach has been chosen: per interval, the means are already available as a result of the previous steps. So in cases where a value is «NA», it is replaced by the according mean value of the relevant interval.
+Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs):
+```{r total steps and NA entries, echo=TRUE}
+        count <- nrow(activity)
+        print("Number of rows in total:")
+        print(count)
+        
+        temp <- lapply(activity, function(x) sum(is.na(activity$steps)))
+        naCount <- temp[1]
+        print("Number of rows with NA:")
+        print(naCount)
+```
+Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.:
+```{r imputation, echo=TRUE}
+        activityCopy <- activity
+        for (i in 1:count){
+                if(is.na(activityCopy[i, 1])){
+                        interval <- activityCopy[i, 3]
+                        activityCopy[i, 1] <- stepsOverDay[stepsOverDay$interval == interval, 2]
+                }
+        }
+```
+Create a new dataset that is equal to the original dataset but with the missing data filled in:
+```{r steps each day - imputed, echo=TRUE}
+        stepsEachDayImputed <- aggregate(steps~date, 
+                                         data=activityCopy, 
+                                         FUN="sum", 
+                                         na.rm=TRUE)
+```
+Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day:
+```{r another histogram, echo=TRUE}
+        hist(stepsEachDayImputed$steps, main="Steps per Day", col = "red", 
+             ylim = c(0, 40), xlim=c(0, 25000), 
+             xlab = "Steps/Day", ylab = "# of Days Values Occur",
+             labels = TRUE)
+        print("Mean steps taken each day: ")
+        print(mean(stepsEachDayImputed$steps))
+        print("Median steps taken each day:")
+        print(median(stepsEachDayImputed$steps))
+```
+Do these values differ from the estimates from the first part of the assignment? Obervation: Mean didn't change (it is still **10766.19)** as for the calculation based on non-imputed values, whereas the median rose from formerly 10765 to newly **10766.19**. So for imputed values, mean and medium are now the same values. 
+
+What is the impact of imputing missing data on the estimates of the total daily number of steps? Conclusion from the observation: the imputation of values using the mean as substitution closed the gap between mean and medium, putting a heavier weight on the mean. This was to be expected, since the according values were added.
+
+## 7.	Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+For data segragation purposes, some enrichment of data is needed first. Deriving from the dates given per line, the according weekday names are determined. In the same step, weekend-days and non-weekend-days are determined.
+Data preparation:
+```{r data preparation, echo=TRUE}
+        activityCopy$date <- ymd(activityCopy$date)
+
+        for (i in 1:nrow(activityCopy)){
+                activityCopy[i,4] <- weekdays(activityCopy[i, 2])
+                if(activityCopy[i, 4] %in% c("Saturday", "Sunday")){
+                        activityCopy[i,5]="Weekend"
+                } else {
+                        activityCopy[i,5]="Weekday"   
+                }
+        }
+
+        colnames(activityCopy)<-c("steps", "date", "interval", "weekday", "daytype")
+        
+        stepsOverDayWeekdays <- aggregate(steps~interval, data=subset(activityCopy, daytype == "Weekday"), FUN="mean")
+        stepsOverDayWeekend <- aggregate(steps~interval, data=subset(activityCopy, daytype == "Weekend"), FUN="mean")
+```
+Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis):
+```{r panel plot, echo=TRUE}
+       par(mfrow=c(2,1))
+        wd <- plot(stepsOverDayWeekdays, 
+             type = "l",
+             col = "red",
+             main = "Average Steps over non-Weekend Days", 
+             xlab = "Time Interval", 
+             ylab = "Steps per 5 Minute Interval")
+        
+        ed <- plot(stepsOverDayWeekend, 
+             type = "l",
+             col = "blue",
+             main = "Average Steps over Weekend Days", 
+             xlab = "Time Interval", 
+             ylab = "Steps per 5 Minute Interval")
+```
+
+
+Are there differences in activity patterns between weekdays and weekends? Obervation: Over weekend days, the movement is more equally distributed across time. Early morning activity is more intense over non-weekend days (there is quite an obvious peak, which is less extreme over weekend-days). So in summary: yes, there is a clear distinction of the patterns.
